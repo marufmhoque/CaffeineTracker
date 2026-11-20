@@ -1,0 +1,139 @@
+{
+  "destination": "Atlanta, GA (303xx metro)",
+  "warehouse_fee_usd_lb": 0.05,
+  "default_shrinkage": 0.15,
+  "unknown_warehouse_freight_usd_lb": 0.45,
+  "tiers": [
+    {
+      "id": "southeast",
+      "label": "Southeast ports",
+      "low": 0.12,
+      "high": 0.18,
+      "default": 0.15,
+      "southeast": true,
+      "warehouses": [
+        {
+          "name": "Savannah, GA",
+          "aliases": [
+            "savannah",
+            "garden city",
+            "sav"
+          ]
+        },
+        {
+          "name": "Charleston, SC",
+          "aliases": [
+            "charleston",
+            "north charleston",
+            "chs"
+          ]
+        },
+        {
+          "name": "Jacksonville, FL",
+          "aliases": [
+            "jacksonville",
+            "jax"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "east",
+      "label": "Northeast, Miami & New Orleans",
+      "low": 0.22,
+      "high": 0.3,
+      "default": 0.26,
+      "southeast": false,
+      "warehouses": [
+        {
+          "name": "New Jersey",
+          "aliases": [
+            "new jersey",
+            "newark",
+            "elizabeth",
+            "edison",
+            "secaucus",
+            "kearny",
+            "carteret",
+            "port newark",
+            "nj"
+          ]
+        },
+        {
+          "name": "New York, NY",
+          "aliases": [
+            "new york",
+            "brooklyn",
+            "staten island",
+            "ny",
+            "nyc"
+          ]
+        },
+        {
+          "name": "Miami, FL",
+          "aliases": [
+            "miami",
+            "doral",
+            "medley",
+            "mia"
+          ]
+        },
+        {
+          "name": "New Orleans, LA",
+          "aliases": [
+            "new orleans",
+            "nola",
+            "harahan"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "west",
+      "label": "West Coast & Houston",
+      "low": 0.38,
+      "high": 0.55,
+      "default": 0.45,
+      "southeast": false,
+      "warehouses": [
+        {
+          "name": "Oakland, CA",
+          "aliases": [
+            "oakland",
+            "alameda",
+            "san leandro",
+            "hayward",
+            "oak"
+          ]
+        },
+        {
+          "name": "Seattle, WA",
+          "aliases": [
+            "seattle",
+            "tacoma",
+            "kent, wa",
+            "sea"
+          ]
+        },
+        {
+          "name": "Houston, TX",
+          "aliases": [
+            "houston",
+            "hou"
+          ]
+        },
+        {
+          "name": "Los Angeles, CA",
+          "aliases": [
+            "los angeles",
+            "long beach",
+            "fullerton",
+            "orange county",
+            "orange, ca",
+            "anaheim"
+          ]
+        }
+      ]
+    }
+  ]
+}

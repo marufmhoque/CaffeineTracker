@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": "C:\\Users\\maruf\\Documents\\CaffeineTracker\\.venv\\Scripts\\python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "backend.app.main:app", "--host", "127.0.0.1", "--port", "8000"],
+      "cwd": "C:\\Users\\maruf\\Documents\\CaffeineTracker",
+      "port": 8000
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "C:\\Users\\maruf\\Documents\\CaffeineTracker\\frontend", "run", "dev"],
+      "cwd": "C:\\Users\\maruf\\Documents\\CaffeineTracker\\frontend",
+      "port": 3000
+    }
+  ]
+}

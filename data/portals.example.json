@@ -1,0 +1,17 @@
+{
+  "_comment": "Copy to data/portals.json and set enabled=true. Selectors are CSS selectors for each importer's login form and spot-sheet download link; inspect the portal once in your browser to fill them in. Credentials come from the .env variables named here — never put passwords in this file.",
+  "portals": [
+    {
+      "importer": "Cafe Imports",
+      "enabled": false,
+      "login_url": "https://www.cafeimports.com/north-america/login",
+      "username_env": "CAFE_IMPORTS_USER",
+      "password_env": "CAFE_IMPORTS_PASSWORD",
+      "username_selector": "input[type=email]",
+      "password_selector": "input[type=password]",
+      "submit_selector": "button[type=submit]",
+      "spot_sheet_url": "",
+      "download_selector": "a:has-text('Download')"
+    }
+  ]
+}

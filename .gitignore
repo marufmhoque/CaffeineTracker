@@ -1,0 +1,23 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Node / Next
+frontend/node_modules/
+frontend/.next/
+frontend/next-env.d.ts
+frontend/tsconfig.tsbuildinfo
+
+# Secrets & local config
+.env
+data/portals.json
+
+# Local data
+data/*.db
+data/*.db-*
+data/spot_sheets/*
+!data/spot_sheets/.gitkeep
+data/ice_robusta.csv
+data/ico_prices.csv
