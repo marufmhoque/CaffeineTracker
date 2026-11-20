@@ -19,6 +19,36 @@ and buying-opportunity alerts.
 Then open http://localhost:3000 (dashboard) and http://127.0.0.1:8000/docs (API).
 On first start the scheduler backfills 5 years of ICE "C"/FX and ~18 months of customs data in the background.
 
+## Streamlit version (easiest to share)
+
+`streamlit_app.py` is a single-process version of the dashboard: the same pipelines, cost engine and alerts, with no API
+server or Node build.
+
+```powershell
+.\.venv\Scripts\pip install -r requirements.txt
+.\.venv\Scripts\streamlit run streamlit_app.py
+```
+
+### Deploy to Streamlit Community Cloud (free)
+
+1. Push this repo to GitHub (the branch you want to deploy).
+2. Go to [share.streamlit.io](https://share.streamlit.io) → **Create app** → **Deploy a public app from GitHub**.
+3. Pick the repo and branch, set **Main file path** to `streamlit_app.py`, and under **Advanced settings** choose Python 3.12.
+4. Optional: paste secrets under **Advanced settings → Secrets** (template: `.streamlit/secrets.toml.example`).
+   Set `ADMIN_PASSWORD` so visitors can't run pipelines, upload sheets or edit freight rules.
+5. **Deploy.** The first load takes about 30 seconds while 5 years of ICE "C"/FX prices download. Importer offers follow
+   within a minute, and customs data fills in over roughly 10 minutes (UN Comtrade is rate-limited), all in the background.
+
+How it behaves on Community Cloud:
+
+- **No scheduler.** Data refreshes when someone visits and it is stale: prices and offers after 12 hours, customs data after 7 days.
+  Alerts run after each refresh.
+- **Temporary disk.** The SQLite database is rebuilt whenever the app restarts or wakes from sleep, so price *history* for
+  importer offers starts over. To keep it, set `DATABASE_URL` to a hosted PostgreSQL database (Neon and Supabase have free tiers)
+  and add `psycopg[binary]` to `requirements.txt`.
+- **Spot sheets** uploaded on the Data Sources page are ingested immediately; the files themselves aren't kept after a restart.
+- Playwright portal logins and the email webhook are not available in the Streamlit version.
+
 ## What's in it
 
 | Page | What it shows |

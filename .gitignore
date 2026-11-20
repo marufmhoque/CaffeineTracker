@@ -21,3 +21,6 @@ data/spot_sheets/*
 !data/spot_sheets/.gitkeep
 data/ice_robusta.csv
 data/ico_prices.csv
+
+# Streamlit
+.streamlit/secrets.toml

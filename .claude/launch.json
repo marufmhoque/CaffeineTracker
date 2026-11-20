@@ -14,6 +14,13 @@
       "runtimeArgs": ["--prefix", "C:\\Users\\maruf\\Documents\\CaffeineTracker\\frontend", "run", "dev"],
       "cwd": "C:\\Users\\maruf\\Documents\\CaffeineTracker\\frontend",
       "port": 3000
+    },
+    {
+      "name": "streamlit",
+      "runtimeExecutable": "C:\\Users\\maruf\\Documents\\CaffeineTracker\\.venv\\Scripts\\python.exe",
+      "runtimeArgs": ["-m", "streamlit", "run", "streamlit_app.py", "--server.port", "8501", "--server.headless", "true"],
+      "cwd": "C:\\Users\\maruf\\Documents\\CaffeineTracker",
+      "port": 8501
     }
   ]
 }
