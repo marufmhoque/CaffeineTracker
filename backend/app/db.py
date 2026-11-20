@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
-from sqlalchemy import event
+from sqlalchemy import event, inspect, text
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from . import config
@@ -54,8 +54,43 @@ def set_engine(engine) -> None:
 def init_db(engine=None) -> None:
     engine = engine or get_engine()
     SQLModel.metadata.create_all(engine)
+    _migrate(engine)
     with Session(engine) as session:
         seed_countries(session)
+        backfill_species(session)
+
+
+# Columns added after the first release: (table, column, DDL type). create_all() never alters tables.
+_ADDED_COLUMNS = [("spot_offers", "species", "VARCHAR")]
+
+
+def _migrate(engine) -> None:
+    insp = inspect(engine)
+    with engine.begin() as conn:
+        for table, column, ddl in _ADDED_COLUMNS:
+            if table in insp.get_table_names() and column not in {c["name"] for c in insp.get_columns(table)}:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
+                conn.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{table}_{column} ON {table} ({column})"))
+
+
+def backfill_species(session: Session) -> int:
+    """Tag offers stored before species tagging existed."""
+    from .models import SpotOffer
+    from .species import infer_species
+
+    rows = session.exec(select(SpotOffer).where(SpotOffer.species.is_(None))).all()
+    if not rows:
+        return 0
+    mixes = {c.iso_code: c.species_mix for c in session.exec(select(Country)).all()}
+    n = 0
+    for o in rows:
+        sp = infer_species(o.lot_name, o.variety, o.origin_region, species_mix=mixes.get(o.country_iso or ""))
+        if sp:
+            o.species = sp
+            session.add(o)
+            n += 1
+    session.commit()
+    return n
 
 
 @contextmanager

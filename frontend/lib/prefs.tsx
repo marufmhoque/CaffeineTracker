@@ -75,11 +75,32 @@ export function toUnit(usdLb: number | null | undefined, unit: Unit): number | n
   return unit === "kg" ? usdLb * LB_PER_KG : usdLb;
 }
 
+export const otherUnit = (u: Unit): Unit => (u === "lb" ? "kg" : "lb");
+
+/** "$2.82" in the given unit, or "—". */
+export function fmtIn(usdLb: number | null | undefined, unit: Unit, digits = 2, signed = false) {
+  const x = toUnit(usdLb, unit);
+  if (x === null) return "—";
+  if (signed) return `${x >= 0 ? "+" : "−"}$${Math.abs(x).toFixed(digits)}`;
+  return `$${x.toFixed(digits)}`;
+}
+
 export function useMoney() {
   const { unit } = usePrefs();
+  const alt = otherUnit(unit);
   return {
     unit,
+    alt,
     suffix: `/${unit}`,
+    altSuffix: `/${alt}`,
+    /** Primary (selected unit) and secondary (other unit) strings, each with its unit suffix. */
+    dual: (v: number | null | undefined, digits = 2, signed = false) => ({
+      primary: v == null ? "—" : `${fmtIn(v, unit, digits, signed)}/${unit}`,
+      secondary: v == null ? "" : `${fmtIn(v, alt, digits, signed)}/${alt}`,
+    }),
+    /** "$2.82/lb ($6.22/kg)" in one string, for tooltips and plain text. */
+    dualText: (v: number | null | undefined, digits = 2) =>
+      v == null ? "—" : `${fmtIn(v, unit, digits)}/${unit} (${fmtIn(v, alt, digits)}/${alt})`,
     conv: (v: number | null | undefined) => toUnit(v, unit),
     fmt: (v: number | null | undefined, digits = 2) => {
       const x = toUnit(v, unit);

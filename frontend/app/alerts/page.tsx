@@ -72,7 +72,7 @@ export default function Alerts() {
       </div>
 
       {data?.alerts.length ? (
-        <ul className="card divide-y divide-[var(--grid)] p-0">
+        <ul className="card divide-y divide-[var(--border)] p-0">
           {data.alerts.map((a) => {
             const meta = LABELS[a.alert_type] ?? { label: a.alert_type, icon: "•" };
             return (
@@ -95,7 +95,7 @@ export default function Alerts() {
                   <div className={`mt-0.5 text-sm ${a.is_read ? "" : "font-medium"}`}>{a.message}</div>
                 </div>
                 {!a.is_read && (
-                  <button className="self-start text-xs text-accent hover:underline" onClick={() => markRead(a.id)}>
+                  <button className="self-start text-xs text-accent-strong hover:underline" onClick={() => markRead(a.id)}>
                     Mark read
                   </button>
                 )}

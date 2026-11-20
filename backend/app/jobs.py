@@ -9,7 +9,7 @@ from typing import Any, Callable
 from .analytics import benchmark_summary
 from .alerts import build_digest, deliver_digest, run_alert_engine
 from .db import session_scope
-from .pipelines import benchmarks, spot, trade
+from .pipelines import benchmarks, market, spot, trade, usda, weather
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +34,28 @@ def job_benchmarks() -> Any:
         with session_scope() as s:
             return benchmarks.run(s)
     return _locked("benchmarks", run)
+
+
+def job_market() -> Any:
+    """ICE forward curve + certified stocks CSV."""
+    def run():
+        with session_scope() as s:
+            return market.run(s)
+    return _locked("market", run)
+
+
+def job_weather() -> Any:
+    def run():
+        with session_scope() as s:
+            return weather.run(s)
+    return _locked("weather", run)
+
+
+def job_usda() -> Any:
+    def run():
+        with session_scope() as s:
+            return usda.run(s)
+    return _locked("usda", run)
 
 
 def job_trade() -> Any:
@@ -80,6 +102,9 @@ def job_alerts(deliver: bool = True) -> Any:
 
 JOBS: dict[str, Callable[[], Any]] = {
     "benchmarks": job_benchmarks,
+    "market": job_market,
+    "weather": job_weather,
+    "usda": job_usda,
     "trade": job_trade,
     "scrapers": job_scrapers,
     "portals": job_portals,
@@ -89,4 +114,5 @@ JOBS: dict[str, Callable[[], Any]] = {
 
 
 def run_all() -> dict[str, Any]:
-    return {name: JOBS[name]() for name in ("benchmarks", "trade", "dropzone", "scrapers", "alerts")}
+    order = ("benchmarks", "market", "weather", "usda", "trade", "dropzone", "scrapers", "alerts")
+    return {name: JOBS[name]() for name in order}

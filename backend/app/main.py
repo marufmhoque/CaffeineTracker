@@ -16,7 +16,7 @@ from sqlmodel import Session, select
 from scrapers import SCRAPERS
 from scrapers.portal import load_portals
 
-from . import analytics, config, costing
+from . import analytics, config, costing, signals
 from .alerts import ALERT_TYPES
 from .db import get_session, init_db
 from .harvest import harvest_status
@@ -70,6 +70,7 @@ def offer_out(o: SpotOffer, shrink: float, names: dict[str, str]) -> dict[str, A
         "origin_region": o.origin_region,
         "process": o.process,
         "variety": o.variety,
+        "species": o.species,
         "sca_score": o.sca_score,
         "bag_weight_kg": o.bag_weight_kg,
         "warehouse_location": o.warehouse_location,
@@ -107,14 +108,42 @@ def countries(session: Session = Depends(get_session)):
     return out
 
 
+SPECIES_Q = Query(None, pattern="^(?i)(all|arabica|robusta)$")
+
+
 @app.get("/api/matrix")
-def matrix(session: Session = Depends(get_session)):
-    return analytics.country_matrix(session)
+def matrix(species: Optional[str] = SPECIES_Q, session: Session = Depends(get_session)):
+    return analytics.country_matrix(session, species=species)
+
+
+@app.get("/api/countries/{iso}/detail")
+def country_detail(iso: str, shrinkage: Optional[float] = Query(None, ge=0, lt=0.5),
+                   session: Session = Depends(get_session)):
+    out = signals.country_detail(session, iso, shrinkage)
+    if out is None:
+        raise HTTPException(404, "unknown country")
+    return out
+
+
+@app.get("/api/signals")
+def market_signals(session: Session = Depends(get_session)):
+    return signals.signals(session)
+
+
+@app.get("/api/benchmarks/curve")
+def benchmarks_curve(session: Session = Depends(get_session)):
+    return signals.forward_curve(session)
 
 
 @app.get("/api/benchmarks/summary")
 def benchmarks_summary(session: Session = Depends(get_session)):
     return analytics.benchmark_summary(session)
+
+
+@app.get("/api/benchmarks/range")
+def benchmarks_range(range: str = Query("1y", pattern="^(1m|6m|1y|3y|5y|max)$"),
+                     session: Session = Depends(get_session)):
+    return signals.benchmark_history(session, range)
 
 
 @app.get("/api/benchmarks/history")
@@ -143,6 +172,7 @@ def offers(
     min_score: Optional[float] = None,
     southeast: bool = False,
     importer: Optional[str] = None,
+    species: Optional[str] = SPECIES_Q,
     shrinkage: Optional[float] = Query(None, ge=0, lt=0.5),
     session: Session = Depends(get_session),
 ):
@@ -150,7 +180,8 @@ def offers(
     shrink = rules["default_shrinkage"] if shrinkage is None else shrinkage
     names = _names(session)
     rows = analytics.current_offers(
-        session, country=country, process=process, min_score=min_score, southeast_only=southeast, importer=importer
+        session, country=country, process=process, min_score=min_score, southeast_only=southeast, importer=importer,
+        species=species,
     )
     return {"shrinkage": shrink, "offers": [offer_out(o, shrink, names) for o in rows]}
 
@@ -170,7 +201,7 @@ def offer_facets(session: Session = Depends(get_session)):
 def history(
     country: str,
     process: Optional[str] = None,
-    range: str = Query("1y", pattern="^(30d|90d|1y|3y)$"),
+    range: str = Query("1y", pattern="^(30d|90d|1y|3y|5y)$"),
     session: Session = Depends(get_session),
 ):
     if not session.get(Country, country.upper()):
@@ -244,6 +275,10 @@ class LandedRequest(BaseModel):
     fee_usd_lb: Optional[float] = Field(None, ge=0)
     shrinkage: Optional[float] = Field(None, ge=0, lt=0.5)
     bags: Optional[int] = Field(None, gt=0)
+    tariff_pct: Optional[float] = Field(None, ge=0, le=200, description="Import duty, percent of spot value")
+    ocean_usd_lb: Optional[float] = Field(None, ge=0)
+    ocean_usd_container: Optional[float] = Field(None, ge=0)
+    container_bags: int = Field(costing.CONTAINER_BAGS, gt=0)
 
 
 @app.post("/api/calc/landed")
@@ -254,15 +289,20 @@ def calc_landed(req: LandedRequest):
         spot_lb = req.price / (req.bag_kg * LB_PER_KG)
     else:
         spot_lb = convert_price(req.price, req.unit, "lb")
+    ocean = req.ocean_usd_lb
+    if req.ocean_usd_container is not None:
+        ocean = (ocean or 0) + costing.container_to_usd_lb(
+            req.ocean_usd_container, req.container_bags, req.bag_kg or costing.CONTAINER_BAG_KG)
     bd, wm = costing.cost_breakdown(
         spot_lb, req.warehouse, freight_override=req.freight_usd_lb, fee_override=req.fee_usd_lb,
-        shrinkage=req.shrinkage,
+        shrinkage=req.shrinkage, tariff_pct=None if req.tariff_pct is None else req.tariff_pct / 100,
+        ocean_usd_lb=ocean,
     )
     out = {
         "warehouse": wm.__dict__,
         "per_lb": bd.__dict__,
         "per_kg": {
-            (k.replace("_usd_lb", "_usd_kg")): (round(v * LB_PER_KG, 4) if k != "shrinkage" else v)
+            (k.replace("_usd_lb", "_usd_kg")): (round(v * LB_PER_KG, 4) if k.endswith("_usd_lb") else v)
             for k, v in bd.__dict__.items()
         },
     }
@@ -273,6 +313,8 @@ def calc_landed(req: LandedRequest):
             "roasted_lb": round(lbs * (1 - bd.shrinkage), 1),
             "green_cost_usd": round(lbs * bd.spot_usd_lb, 2),
             "freight_usd": round(lbs * bd.freight_usd_lb, 2),
+            "tariff_usd": round(lbs * bd.tariff_usd_lb, 2),
+            "ocean_usd": round(lbs * bd.ocean_usd_lb, 2),
             "fees_usd": round(lbs * bd.fee_usd_lb, 2),
             "landed_total_usd": round(lbs * bd.landed_usd_lb, 2),
         }
@@ -323,6 +365,21 @@ async def ingest_upload(file: UploadFile = File(...), session: Session = Depends
     except ValueError as e:
         raise HTTPException(422, str(e)) from e
     return spot.ingest_file(session, path)
+
+
+@app.post("/api/ingest/market-csv")
+async def ingest_market_csv(kind: str = Query(..., pattern="^(certified_stocks|robusta)$"),
+                            file: UploadFile = File(...), session: Session = Depends(get_session)):
+    """Upload ICE certified stocks (date,bags) or ICE Robusta settlements (date,usd_tonne)."""
+    from .pipelines import market
+
+    data = await file.read()
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "file too large")
+    try:
+        return market.import_csv(session, kind, data)
+    except (ValueError, KeyError) as e:
+        raise HTTPException(422, str(e)) from e
 
 
 @app.post("/api/ingest/email")

@@ -58,9 +58,12 @@ def parse_yahoo_chart(payload: dict) -> list[tuple[date, float]]:
 
 def fetch_yahoo_series(client: httpx.Client, symbol: str, range_: str) -> list[tuple[date, float]]:
     """Daily closes, excluding today's still-forming bar (intraday FX prints on thin pairs are noisy)."""
-    resp = get_with_retry(
-        client, YAHOO_CHART.format(symbol=symbol), params={"range": range_, "interval": "1d"}
+    # range=max silently downgrades to monthly bars; an explicit period keeps daily bars back to ~2000.
+    params = (
+        {"period1": 0, "period2": int(datetime.now(timezone.utc).timestamp()), "interval": "1d"}
+        if range_ == "max" else {"range": range_, "interval": "1d"}
     )
+    resp = get_with_retry(client, YAHOO_CHART.format(symbol=symbol), params=params)
     today = datetime.now(ZoneInfo(config.TIMEZONE)).date()
     return [(d, v) for d, v in parse_yahoo_chart(resp.json()) if d < today]
 
@@ -144,7 +147,13 @@ def run(session: Session, *, backfill: bool | None = None, client: httpx.Client 
     try:
         arabica = robusta = []
         try:
-            arabica = fetch_yahoo_series(client, ARABICA_SYMBOL, range_)
+            # Full daily ICE "C" history on backfill (powers the MAX range); FX stays at 5 years.
+            earliest = session.exec(
+                select(MarketBenchmark.date).where(MarketBenchmark.ice_arabica_usd_lb.is_not(None))
+                .order_by(MarketBenchmark.date).limit(1)
+            ).first()
+            need_max = earliest is None or (date.today() - earliest).days < 365 * 6
+            arabica = fetch_yahoo_series(client, ARABICA_SYMBOL, "max" if need_max else range_)
         except Exception as e:  # noqa: BLE001
             errors.append(f"arabica {ARABICA_SYMBOL}: {e}")
         if ROBUSTA_SYMBOL:
@@ -155,13 +164,9 @@ def run(session: Session, *, backfill: bool | None = None, client: httpx.Client 
         robusta_csv = config.DATA_DIR / "ice_robusta.csv"
         if robusta_csv.exists():
             try:
-                rdf = pd.read_csv(robusta_csv)
-                rdf.columns = [c.strip().lower() for c in rdf.columns]
-                robusta = list(robusta) + [
-                    (pd.to_datetime(d).date(), float(v))
-                    for d, v in zip(rdf["date"], rdf["usd_tonne"])
-                    if v == v
-                ]
+                from .market import parse_robusta_csv
+
+                robusta = list(robusta) + parse_robusta_csv(robusta_csv)
             except Exception as e:  # noqa: BLE001
                 errors.append(f"ice_robusta.csv: {e}")
 

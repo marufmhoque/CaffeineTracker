@@ -80,7 +80,14 @@ export type Country = {
   fly_harvest_months: number[];
 };
 
-export type Matrix = { as_of: string; ice_arabica_usd_lb: number | null; countries: Country[] };
+export type Matrix = {
+  as_of: string;
+  species: "All" | "Arabica" | "Robusta";
+  benchmark: "arabica" | "robusta";
+  benchmark_usd_lb: number | null;
+  ice_arabica_usd_lb: number | null;
+  countries: Country[];
+};
 
 export type FxRow = {
   currency: string;
@@ -102,7 +109,15 @@ export type Summary = {
     chg_30d_pct: number | null;
     chg_1y_pct: number | null;
   };
-  ice_robusta: { date: string; usd_lb: number } | null;
+  ice_robusta: {
+    date: string;
+    usd_lb: number;
+    chg_1d_pct: number | null;
+    chg_30d_pct: number | null;
+    chg_1y_pct: number | null;
+    high_52w: number | null;
+    low_52w: number | null;
+  } | null;
   ico: { date: string; composite_usd_lb: number; groups: Record<string, number> } | null;
   fx: FxRow[];
 };
@@ -119,6 +134,7 @@ export type Offer = {
   origin_region: string | null;
   process: string | null;
   variety: string | null;
+  species: string | null;
   sca_score: number | null;
   bag_weight_kg: number | null;
   warehouse_location: string | null;
@@ -145,6 +161,7 @@ export type Alert = {
 export type HistoryPoint = {
   date: string;
   ice_c_usd_lb: number | null;
+  ice_robusta_usd_lb?: number | null;
   spot_avg_usd_lb: number | null;
   spot_n: number;
   diff_usd_lb: number | null;
@@ -174,6 +191,8 @@ export type FreightRules = {
   warehouse_fee_usd_lb: number;
   default_shrinkage: number;
   unknown_warehouse_freight_usd_lb: number;
+  tariff_pct?: number;
+  ocean_surcharge_usd_lb?: number;
   tiers: {
     id: string;
     label: string;
@@ -183,4 +202,124 @@ export type FreightRules = {
     southeast?: boolean;
     warehouses: { name: string; aliases: string[] }[];
   }[];
+};
+
+// ---- 5-year ranges, signals, origin drawer
+
+export type BenchRange = "1m" | "6m" | "1y" | "3y" | "5y" | "max";
+
+export type BenchHistory = {
+  range: BenchRange;
+  interval: "daily" | "weekly";
+  points: { date: string; arabica: number | null; robusta: number | null }[];
+  arabica: { first: number; last: number; high: number; low: number; chg_pct: number | null } | null;
+  robusta: { first: number; last: number; high: number; low: number; chg_pct: number | null } | null;
+  earliest: string | null;
+};
+
+export type CurveContract = { symbol: string; contract_month: string; label: string; usd_lb: number };
+
+export type Curve = {
+  date: string | null;
+  contracts: CurveContract[];
+  structure: { state: "Contango" | "Backwardation" | "Flat"; slope_pct: number; annualized_pct: number; months: number; takeaway: string } | null;
+  month_ago_date?: string | null;
+  month_ago: CurveContract[];
+};
+
+export type WeatherBelt = {
+  as_of: string;
+  country_iso: string;
+  belt: string;
+  species: string;
+  lat: number;
+  lon: number;
+  rain_90d_mm: number | null;
+  rain_normal_mm: number | null;
+  rain_pct_normal: number | null;
+  hot_days_30d: number;
+  frost_days_30d: number;
+  frost_forecast_days: number;
+  hot_forecast_days: number;
+  risk: "Low" | "Moderate" | "Critical";
+  reasons: string[];
+};
+
+export type CropCycle = {
+  market_year: string;
+  production_k_bags: number;
+  arabica_k_bags: number | null;
+  robusta_k_bags: number | null;
+  yoy_pct: number | null;
+  vs_5y_avg_pct: number | null;
+  cycle: "On-year" | "Off-year" | null;
+  cycle_basis: string;
+};
+
+export type Signals = {
+  curve: Curve;
+  weather: WeatherBelt[];
+  certified_stocks: {
+    latest: { date: string; bags: number } | null;
+    range_5y?: { low: number; high: number; position_pct: number };
+    chg_90d_pct?: number | null;
+    pinch: boolean | null;
+    takeaway?: string;
+    series: { date: string; bags: number; ice_usd_lb: number | null }[];
+  };
+  crops: {
+    world: {
+      market_year: string;
+      production_k_bags: number;
+      consumption_k_bags: number;
+      surplus_k_bags: number;
+      surplus_pct: number | null;
+      ending_stocks_k_bags: number | null;
+      arabica_yoy_pct?: number;
+      robusta_yoy_pct?: number;
+      history: { year: number; production: number; consumption: number }[];
+    } | null;
+    origins: (CropCycle & { iso_code: string; name: string })[];
+  };
+};
+
+export type Lot = {
+  id: number;
+  importer: string;
+  lot_name: string;
+  producer: string | null;
+  process: string | null;
+  variety: string | null;
+  species: string | null;
+  sca_score: number | null;
+  bag_weight_kg: number | null;
+  bags_available: number | null;
+  warehouse: string | null;
+  is_southeast: boolean;
+  spot_usd_lb: number;
+  landed_usd_lb: number | null;
+  roasted_usd_lb: number | null;
+  raw_url: string | null;
+};
+
+export type CountryDetail = {
+  iso_code: string;
+  name: string;
+  region: string;
+  species_mix: string;
+  species_share: Record<string, number>;
+  species_share_basis: string;
+  currency_code: string;
+  ico_group: string;
+  harvest_status: string;
+  main_harvest_months: number[];
+  fly_harvest_months: number[];
+  default_bag_kg: number;
+  typical_diff_usd_lb: [number | null, number | null];
+  prices: Country | null;
+  weather_risk: "Low" | "Moderate" | "Critical" | null;
+  weather: WeatherBelt[];
+  crop: CropCycle | null;
+  shrinkage: number;
+  lots: Lot[];
 };
