@@ -2,6 +2,9 @@
 
   init                         create the database and seed countries
   benchmarks                   Tier 1: ICE + FX (+ ICO CSV)
+  market                       ICE forward curve + certified stocks CSV
+  weather                      Open-Meteo growing-belt anomalies
+  usda                         USDA FAS PSD crop balance sheets
   trade [--months N]           Tier 3: Comtrade / Census unit values
   scrape [--only k1,k2] [--dry-run]   Tier 2: importer scrapers
   portals                      Tier 2: authenticated portal downloads (Playwright)
@@ -25,7 +28,7 @@ from sqlmodel import select
 from .alerts import build_digest
 from .analytics import benchmark_summary
 from .db import init_db, session_scope
-from .jobs import job_alerts, job_benchmarks, job_dropzone, job_portals, run_all
+from .jobs import job_alerts, job_benchmarks, job_dropzone, job_market, job_portals, job_usda, job_weather, run_all
 from .models import Alert
 from .pipelines import spot, trade
 
@@ -46,6 +49,9 @@ def main(argv: list[str] | None = None) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("init")
     sub.add_parser("benchmarks")
+    sub.add_parser("market")
+    sub.add_parser("weather")
+    sub.add_parser("usda")
     t = sub.add_parser("trade")
     t.add_argument("--months", type=int)
     s = sub.add_parser("scrape")
@@ -66,6 +72,12 @@ def main(argv: list[str] | None = None) -> int:
         print("database ready")
     elif args.cmd == "benchmarks":
         _print(job_benchmarks())
+    elif args.cmd == "market":
+        _print(job_market())
+    elif args.cmd == "weather":
+        _print(job_weather())
+    elif args.cmd == "usda":
+        _print(job_usda())
     elif args.cmd == "trade":
         with session_scope() as sess:
             _print(trade.run(sess, months=args.months))

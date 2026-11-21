@@ -1,7 +1,11 @@
 """Atlanta landed-cost engine: warehouse -> LTL freight tier, landed green cost, roasted cost.
 
-Landed Green Cost/lb  = Spot/lb + LTL Freight to Atlanta/lb + Warehouse/Financing Fee/lb
+Landed Green Cost/lb  = Spot/lb × (1 + Tariff %) + Ocean Surcharge/lb + LTL Freight to Atlanta/lb
+                        + Warehouse/Financing Fee/lb
 True Roasted Cost/lb  = Landed Green Cost/lb / (1 - Shrinkage)
+
+Tariff and ocean surcharge default to 0 (importer spot prices are usually ex-warehouse, duty paid).
+A per-container ocean surcharge is spread over the container's green weight.
 """
 
 from __future__ import annotations
@@ -20,6 +24,8 @@ DEFAULT_RULES: dict[str, Any] = {
     "destination": "Atlanta, GA (303xx metro)",
     "warehouse_fee_usd_lb": 0.05,
     "default_shrinkage": 0.15,
+    "tariff_pct": 0.0,
+    "ocean_surcharge_usd_lb": 0.0,
     "unknown_warehouse_freight_usd_lb": 0.45,
     "tiers": [
         {
@@ -90,6 +96,14 @@ class CostBreakdown:
     landed_usd_lb: float
     shrinkage: float
     roasted_usd_lb: float
+    tariff_pct: float = 0.0
+    tariff_usd_lb: float = 0.0
+    ocean_usd_lb: float = 0.0
+
+
+# A 20' container of green coffee: 320 bags x 60 kg (19.2 t).
+CONTAINER_BAGS = 320
+CONTAINER_BAG_KG = 60.0
 
 
 _lock = threading.Lock()
@@ -130,6 +144,10 @@ def validate_rules(rules: dict[str, Any]) -> None:
             raise ValueError(f"{key} must be >= 0")
     if not 0 <= float(rules["default_shrinkage"]) < 1:
         raise ValueError("default_shrinkage must be in [0, 1)")
+    if not 0 <= float(rules.get("tariff_pct", 0)) <= 2:
+        raise ValueError("tariff_pct must be a fraction between 0 and 2 (0.10 = 10%)")
+    if float(rules.get("ocean_surcharge_usd_lb", 0)) < 0:
+        raise ValueError("ocean_surcharge_usd_lb must be >= 0")
     tiers = rules.get("tiers")
     if not isinstance(tiers, list) or not tiers:
         raise ValueError("freight rules need at least one tier")
@@ -186,10 +204,22 @@ def match_warehouse(
     )
 
 
-def landed_cost(spot_usd_lb: float, freight_usd_lb: float, fee_usd_lb: float) -> float:
-    if spot_usd_lb < 0 or freight_usd_lb < 0 or fee_usd_lb < 0:
+def landed_cost(
+    spot_usd_lb: float, freight_usd_lb: float, fee_usd_lb: float, *, tariff_pct: float = 0.0,
+    ocean_usd_lb: float = 0.0,
+) -> float:
+    if min(spot_usd_lb, freight_usd_lb, fee_usd_lb, tariff_pct, ocean_usd_lb) < 0:
         raise ValueError("cost components must be non-negative")
-    return spot_usd_lb + freight_usd_lb + fee_usd_lb
+    return spot_usd_lb * (1 + tariff_pct) + ocean_usd_lb + freight_usd_lb + fee_usd_lb
+
+
+def container_to_usd_lb(usd_per_container: float, bags: int = CONTAINER_BAGS, bag_kg: float = CONTAINER_BAG_KG) -> float:
+    """Spread a per-container charge over the container's green weight."""
+    if bags <= 0 or bag_kg <= 0:
+        raise ValueError("bags and bag weight must be positive")
+    from .units import bag_kg_to_lb
+
+    return usd_per_container / (bags * bag_kg_to_lb(bag_kg))
 
 
 def roasted_cost(landed_usd_lb: float, shrinkage: float) -> float:
@@ -215,13 +245,17 @@ def cost_breakdown(
     freight_override: float | None = None,
     fee_override: float | None = None,
     shrinkage: float | None = None,
+    tariff_pct: float | None = None,
+    ocean_usd_lb: float | None = None,
 ) -> tuple[CostBreakdown, WarehouseMatch]:
     rules = rules or load_rules()
     match = match_warehouse(warehouse, rules)
     freight = match.freight_usd_lb if freight_override is None else float(freight_override)
     fee = float(rules["warehouse_fee_usd_lb"]) if fee_override is None else float(fee_override)
     shrink = float(rules["default_shrinkage"]) if shrinkage is None else float(shrinkage)
-    landed = landed_cost(spot_usd_lb, freight, fee)
+    tariff = float(rules.get("tariff_pct", 0)) if tariff_pct is None else float(tariff_pct)
+    ocean = float(rules.get("ocean_surcharge_usd_lb", 0)) if ocean_usd_lb is None else float(ocean_usd_lb)
+    landed = landed_cost(spot_usd_lb, freight, fee, tariff_pct=tariff, ocean_usd_lb=ocean)
     return (
         CostBreakdown(
             spot_usd_lb=spot_usd_lb,
@@ -230,6 +264,9 @@ def cost_breakdown(
             landed_usd_lb=landed,
             shrinkage=shrink,
             roasted_usd_lb=roasted_cost(landed, shrink),
+            tariff_pct=tariff,
+            tariff_usd_lb=spot_usd_lb * tariff,
+            ocean_usd_lb=ocean,
         ),
         match,
     )

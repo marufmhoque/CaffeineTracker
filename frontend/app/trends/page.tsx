@@ -3,11 +3,11 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { DiffChart, Legend, PriceChart, TradeChart } from "@/components/Charts";
-import { Empty, ErrorNote, PageHeader, Segmented } from "@/components/ui";
+import { Empty, ErrorNote, PageHeader, Price, Segmented } from "@/components/ui";
 import { useApi, type History, type Matrix } from "@/lib/api";
 import { useMoney } from "@/lib/prefs";
 
-type Range = "30d" | "90d" | "1y" | "3y";
+type Range = "30d" | "90d" | "1y" | "3y" | "5y";
 
 function Trends() {
   const m = useMoney();
@@ -33,11 +33,16 @@ function Trends() {
   const c = matrix.data?.countries.find((x) => x.iso_code === country);
   const name = c?.name ?? country;
   const hasSpot = data?.points.some((p) => p.spot_avg_usd_lb !== null);
+  const robusta = (c?.species_mix ?? "").includes("Robusta");
+  const hasRob = robusta && data?.points.some((p) => p.ice_robusta_usd_lb != null);
   const trend = data?.spread_trend;
 
   return (
     <>
-      <PageHeader title="Historical trends" subtitle="Spot prices vs the ICE “C” benchmark, the origin differential spread, and customs import unit values.">
+      <PageHeader
+        title="Historical trends"
+        subtitle="Up to 5 years per origin: recorded importer spot prices vs ICE “C” (and ICE Robusta), the differential spread, and customs import unit values."
+      >
         <select className="input" value={country} onChange={(e) => setParam("country", e.target.value)} aria-label="Country">
           {(matrix.data?.countries ?? []).map((x) => (
             <option key={x.iso_code} value={x.iso_code}>
@@ -53,16 +58,18 @@ function Trends() {
         </select>
         <Segmented
           label="Range"
+          size="sm"
           value={range}
           onChange={(r) => {
             setRange(r);
             setParam("range", r);
           }}
           options={[
-            { value: "30d", label: "30d" },
-            { value: "90d", label: "90d" },
-            { value: "1y", label: "1y" },
-            { value: "3y", label: "3y" },
+            { value: "30d", label: "1M" },
+            { value: "90d", label: "3M" },
+            { value: "1y", label: "1Y" },
+            { value: "3y", label: "3Y" },
+            { value: "5y", label: "5Y" },
           ]}
         />
       </PageHeader>
@@ -71,42 +78,43 @@ function Trends() {
       <div className={`grid gap-4 transition-opacity lg:grid-cols-3 ${loading ? "opacity-60" : ""}`}>
         <section className="card lg:col-span-2">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-medium">
+            <h2 className="card-title">
               {name}
-              {process ? ` · ${process}` : ""} — spot vs ICE “C” {m.suffix}
+              {process ? ` · ${process}` : ""} — spot vs benchmark <span className="font-normal text-muted">{m.suffix}</span>
             </h2>
             <Legend
               items={[
-                { label: `${name} spot avg`, color: "var(--series-1)" },
-                { label: "ICE “C”", color: "var(--series-2)" },
+                { label: `${name} spot avg`, color: "var(--series-2)" },
+                { label: "ICE “C”", color: "var(--series-1)" },
+                ...(hasRob ? [{ label: "ICE Robusta", color: "var(--series-4)" }] : []),
               ]}
             />
           </div>
-          {data && data.points.length ? <PriceChart points={data.points} label={name} /> : <div className="h-72" />}
+          {data && data.points.length ? <PriceChart points={data.points} label={name} showRobusta={robusta} /> : <div className="h-72" />}
           {data && !hasSpot && (
             <p className="mt-2 text-sm text-ink2">No importer spot offers recorded for this origin in the range yet — see customs unit values below.</p>
           )}
         </section>
 
         <section className="card">
-          <h2 className="mb-1 font-medium">Differential spread</h2>
+          <h2 className="card-title mb-1">Differential spread</h2>
           <p className="mb-2 text-xs text-muted">Origin spot premium over ICE “C”. Widening = origin getting dearer relative to the market.</p>
           {trend ? (
             <div className="mb-2 text-sm">
-              <span className="text-2xl font-semibold">{trend.direction}</span>
-              <span className="ml-2 text-ink2">
-                {m.fmtSigned(trend.usd_lb_per_30d, 3)}
-                {m.suffix} per 30 days
+              <span className="text-2xl font-semibold capitalize">{trend.direction}</span>
+              <span className="mono ml-2 text-ink2">
+                {m.dual(trend.usd_lb_per_30d, 3, true).primary}
+                <span className="text-muted"> ({m.dual(trend.usd_lb_per_30d, 3, true).secondary})</span> per 30 days
               </span>
             </div>
           ) : (
             <div className="mb-2 text-sm text-muted">Needs ≥3 spot observations in range.</div>
           )}
           {c && (
-            <div className="space-y-1 border-t border-[var(--grid)] pt-2 text-sm">
-              <div className="flex justify-between">
+            <div className="space-y-1 border-t border-border pt-2 text-sm">
+              <div className="flex items-start justify-between">
                 <span className="text-ink2">Current differential</span>
-                <span className="num font-medium">{m.fmtSigned(c.diff_vs_c_usd_lb)}</span>
+                <Price usdLb={c.diff_vs_c_usd_lb} signed layout="stack" />
               </div>
               <div className="flex justify-between">
                 <span className="text-ink2">Typical range</span>
@@ -125,9 +133,11 @@ function Trends() {
       </div>
 
       <section className="card mt-4">
-        <h2 className="mb-1 font-medium">Customs import unit values {m.suffix}</h2>
+        <h2 className="card-title mb-1">
+          Customs import unit values <span className="font-normal text-muted">{m.suffix}</span>
+        </h2>
         <p className="mb-2 text-xs text-muted">HS 0901.11 (green, not decaf): customs value ÷ net weight for imports from {name}. Broad market signal across all grades.</p>
-        {data?.trade.some((t) => t.freq === "M") ? (
+        {data?.trade.length ? (
           <TradeChart trade={data.trade} />
         ) : data?.trade.length ? (
           <ul className="text-sm">
@@ -160,9 +170,11 @@ function Trends() {
               </thead>
               <tbody>
                 {[...data.points].reverse().map((p) => (
-                  <tr key={p.date} className="border-t border-[var(--grid)]">
-                    <td className="td">{p.date}</td>
-                    <td className="td num">{m.fmt(p.spot_avg_usd_lb)}</td>
+                  <tr key={p.date} className="border-t border-border">
+                    <td className="td mono">{p.date}</td>
+                    <td className="td num">
+                      <Price usdLb={p.spot_avg_usd_lb} layout="stack" />
+                    </td>
                     <td className="td num">{p.spot_n || "—"}</td>
                     <td className="td num">{m.fmt(p.ice_c_usd_lb, 4)}</td>
                     <td className="td num">{m.fmtSigned(p.diff_usd_lb)}</td>

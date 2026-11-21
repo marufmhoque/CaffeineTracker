@@ -1,0 +1,20 @@
+{
+  "_meta": "Representative coordinates for core coffee growing belts, used for Open-Meteo weather anomaly checks. Edit or add belts freely.",
+  "belts": [
+    {"country_iso": "BRA", "belt": "Sul de Minas", "species": "Arabica", "lat": -21.55, "lon": -45.43},
+    {"country_iso": "BRA", "belt": "Cerrado Mineiro", "species": "Arabica", "lat": -18.94, "lon": -46.99},
+    {"country_iso": "BRA", "belt": "Espírito Santo (Conilon)", "species": "Robusta", "lat": -19.39, "lon": -40.07},
+    {"country_iso": "VNM", "belt": "Central Highlands (Đắk Lắk)", "species": "Robusta", "lat": 12.67, "lon": 108.04},
+    {"country_iso": "COL", "belt": "Huila", "species": "Arabica", "lat": 2.20, "lon": -75.63},
+    {"country_iso": "ETH", "belt": "Sidama", "species": "Arabica", "lat": 6.74, "lon": 38.47},
+    {"country_iso": "IDN", "belt": "Lampung", "species": "Robusta", "lat": -5.10, "lon": 104.50},
+    {"country_iso": "IDN", "belt": "Gayo Highlands (Aceh)", "species": "Arabica", "lat": 4.62, "lon": 96.85},
+    {"country_iso": "UGA", "belt": "Central Uganda (Masaka)", "species": "Robusta", "lat": -0.33, "lon": 31.73},
+    {"country_iso": "HND", "belt": "Copán / Santa Bárbara", "species": "Arabica", "lat": 14.92, "lon": -88.24},
+    {"country_iso": "GTM", "belt": "Huehuetenango", "species": "Arabica", "lat": 15.32, "lon": -91.47},
+    {"country_iso": "PER", "belt": "Jaén / Cajamarca", "species": "Arabica", "lat": -5.71, "lon": -78.81},
+    {"country_iso": "KEN", "belt": "Nyeri", "species": "Arabica", "lat": -0.42, "lon": 36.95},
+    {"country_iso": "IND", "belt": "Chikmagalur", "species": "Arabica", "lat": 13.32, "lon": 75.77},
+    {"country_iso": "MEX", "belt": "Chiapas (Soconusco)", "species": "Arabica", "lat": 15.15, "lon": -92.25}
+  ]
+}

@@ -59,6 +59,7 @@ class SpotOffer(SQLModel, table=True):
     origin_region: Optional[str] = None  # region / farm / co-op
     process: Optional[str] = Field(default=None, index=True)
     variety: Optional[str] = None
+    species: Optional[str] = Field(default=None, index=True)  # Arabica | Robusta | Liberica
     sca_score: Optional[float] = None
     bag_weight_kg: Optional[float] = None
     warehouse_location: Optional[str] = None
@@ -88,6 +89,69 @@ class TradeValuation(SQLModel, table=True):
     import_value_usd: float
     unit_price_usd_lb: float
     source: str = "un_comtrade"
+
+
+class FuturesQuote(SQLModel, table=True):
+    """Daily settle of one futures contract month (the forward curve / term structure)."""
+
+    __tablename__ = "futures_quotes"
+    __table_args__ = (UniqueConstraint("date", "symbol"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    date: dt.date = Field(index=True)
+    market: str = Field(default="arabica", index=True)  # arabica | robusta
+    symbol: str  # e.g. KCH27.NYB
+    contract_month: dt.date  # first day of the delivery month
+    usd_lb: float
+
+
+class CertifiedStock(SQLModel, table=True):
+    """ICE-certified (exchange-graded, licensed warehouse) inventory, in 60 kg bags."""
+
+    __tablename__ = "certified_stocks"
+    __table_args__ = (UniqueConstraint("date", "market"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    date: dt.date = Field(index=True)
+    market: str = Field(default="arabica", index=True)
+    bags: int
+
+
+class WeatherSignal(SQLModel, table=True):
+    """Weather anomaly snapshot for one coffee growing belt (Open-Meteo)."""
+
+    __tablename__ = "weather_signals"
+    __table_args__ = (UniqueConstraint("as_of", "belt"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    as_of: dt.date = Field(index=True)
+    country_iso: str = Field(foreign_key="countries.iso_code", index=True)
+    belt: str
+    species: str
+    lat: float
+    lon: float
+    rain_90d_mm: Optional[float] = None
+    rain_normal_mm: Optional[float] = None
+    rain_pct_normal: Optional[float] = None
+    hot_days_30d: int = 0
+    frost_days_30d: int = 0
+    frost_forecast_days: int = 0
+    hot_forecast_days: int = 0
+    risk: str = "Low"  # Low | Moderate | Critical
+    reasons_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+
+
+class CropEstimate(SQLModel, table=True):
+    """USDA FAS PSD balance-sheet line, thousand 60 kg bags."""
+
+    __tablename__ = "crop_estimates"
+    __table_args__ = (UniqueConstraint("country_iso", "market_year", "attribute"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    country_iso: str = Field(index=True)  # ISO-3, or "WLD" for the world total
+    market_year: int = Field(index=True)
+    attribute: str  # production | arabica_production | robusta_production | domestic_consumption | ...
+    value_k_bags: float
 
 
 class Alert(SQLModel, table=True):

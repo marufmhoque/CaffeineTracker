@@ -36,26 +36,30 @@ export default function Nav() {
   }, [path]);
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-surface/95 backdrop-blur">
+    <header className="sticky top-0 z-30 border-b border-border bg-[var(--surface-1)]/90 backdrop-blur-md">
       <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 sm:px-6">
-        <Link href="/" className="flex items-baseline gap-2">
-          <span className="text-lg font-semibold tracking-tight">OriginPulse</span>
-          <span className="hidden text-xs text-muted sm:inline">Green coffee · Atlanta landed cost</span>
+        <Link href="/" className="flex items-center gap-2">
+          <span aria-hidden className="grid h-6 w-6 place-items-center rounded-md bg-[var(--accent)] text-[13px] font-bold text-white">
+            O
+          </span>
+          <span className="text-[15px] font-semibold tracking-tight">OriginPulse</span>
+          <span className="hidden text-xs text-muted xl:inline">Green coffee · Atlanta landed cost</span>
         </Link>
-        <nav className="order-3 -mx-1 flex w-full gap-1 overflow-x-auto lg:order-none lg:w-auto">
+        <nav className="order-3 -mx-1 flex w-full gap-0.5 overflow-x-auto lg:order-none lg:w-auto">
           {LINKS.map((l) => {
             const active = l.href === "/" ? path === "/" : path.startsWith(l.href);
             return (
               <Link
                 key={l.href}
                 href={l.href}
-                className={`relative whitespace-nowrap rounded-lg px-2.5 py-1.5 text-sm ${
-                  active ? "bg-surface2 font-medium text-ink" : "text-ink2 hover:bg-surface2"
+                aria-current={active ? "page" : undefined}
+                className={`relative whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                  active ? "bg-surface2 text-ink" : "text-muted hover:text-ink"
                 }`}
               >
                 {l.label}
                 {l.href === "/alerts" && unread > 0 && (
-                  <span className="ml-1.5 rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                  <span className="mono ml-1.5 rounded-full bg-[var(--accent-strong)] px-1.5 py-0.5 text-[10px] font-semibold text-white">
                     {unread}
                   </span>
                 )}
@@ -64,13 +68,20 @@ export default function Nav() {
           })}
         </nav>
         <div className="ml-auto flex items-center gap-2">
-          <div role="group" aria-label="Price unit" className="flex rounded-lg border border-border p-0.5 text-sm">
+          <div
+            role="group"
+            aria-label="Primary price unit"
+            title="Primary unit — the other unit is shown alongside"
+            className="inline-flex rounded-full border border-border bg-surface2 p-0.5 text-[13px]"
+          >
             {(["lb", "kg"] as const).map((u) => (
               <button
                 key={u}
                 onClick={() => setUnit(u)}
                 aria-pressed={unit === u}
-                className={`rounded-md px-2.5 py-1 ${unit === u ? "bg-surface2 font-medium" : "text-ink2"}`}
+                className={`mono rounded-full px-2.5 py-0.5 font-medium ${
+                  unit === u ? "bg-surface text-ink ring-1 ring-border" : "text-muted hover:text-ink"
+                }`}
               >
                 $/{u}
               </button>
@@ -78,7 +89,7 @@ export default function Nav() {
           </div>
           <select
             aria-label="Theme"
-            className="input py-1"
+            className="input rounded-full py-1 text-[13px]"
             value={theme}
             onChange={(e) => setTheme(e.target.value as "system" | "light" | "dark")}
           >

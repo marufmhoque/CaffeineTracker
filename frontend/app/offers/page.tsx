@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { Empty, ErrorNote, PageHeader } from "@/components/ui";
+import { useEffect, useMemo, useState } from "react";
+import { Badge, Empty, ErrorNote, PageHeader, Price, SpeciesToggle, type Species } from "@/components/ui";
 import { useApi, type Offer } from "@/lib/api";
 import { useMoney } from "@/lib/prefs";
 
@@ -19,6 +19,12 @@ export default function Offers() {
   const [southeast, setSoutheast] = useState(false);
   const [shrink, setShrink] = useState(15);
   const [sort, setSort] = useState<SortKey>("landed_usd_lb");
+  const [species, setSpecies] = useState<Species>("All");
+
+  useEffect(() => {
+    const c = new URLSearchParams(window.location.search).get("country");
+    if (c) setCountry(c.toUpperCase());
+  }, []);
 
   const qs = new URLSearchParams();
   if (country) qs.set("country", country);
@@ -26,6 +32,7 @@ export default function Offers() {
   if (importer) qs.set("importer", importer);
   if (minScore) qs.set("min_score", minScore);
   if (southeast) qs.set("southeast", "true");
+  if (species !== "All") qs.set("species", species);
   qs.set("shrinkage", String(shrink / 100));
   const { data, error, loading } = useApi<{ shrinkage: number; offers: Offer[] }>(`/offers?${qs}`);
 
@@ -48,7 +55,9 @@ export default function Offers() {
       <PageHeader
         title="Live spot offers"
         subtitle="Current importer offerings with estimated LTL freight to Atlanta, landed green cost and true roasted cost. Southeast warehouses (Savannah, Charleston, Jacksonville) save cross-country freight."
-      />
+      >
+        <SpeciesToggle value={species} onChange={setSpecies} />
+      </PageHeader>
       <ErrorNote error={error} />
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -99,7 +108,7 @@ export default function Offers() {
 
       {rows.length === 0 && !loading ? (
         <Empty title="No current spot offers">
-          Run the importer scrapers, or drop a spot sheet (CSV / XLSX / PDF) on the <Link className="text-accent underline" href="/data">Data Sources</Link> page.
+          Run the importer scrapers, or drop a spot sheet (CSV / XLSX / PDF) on the <Link className="link" href="/data">Data Sources</Link> page.
         </Empty>
       ) : (
         <div className={`card overflow-x-auto p-0 transition-opacity ${loading ? "opacity-60" : ""}`}>
@@ -120,7 +129,7 @@ export default function Offers() {
             </thead>
             <tbody>
               {rows.map((o) => (
-                <tr key={o.id} className="border-t border-[var(--grid)] align-top hover:bg-surface2">
+                <tr key={o.id} className="border-t border-border align-top hover:bg-[var(--surface-hover)]">
                   <td className="td">
                     <div className="w-[260px] whitespace-normal">
                     {o.raw_url ? (
@@ -151,23 +160,37 @@ export default function Offers() {
                     <div className="w-[180px] whitespace-normal">
                       {o.process ?? "—"}
                       {o.variety && <div className="text-xs text-muted">{o.variety}</div>}
+                      {o.species && o.species !== "Arabica" && (
+                        <div className="mt-1">
+                          <Badge tone="accent">{o.species}</Badge>
+                        </div>
+                      )}
                     </div>
                   </td>
                   <td className="td num">{o.sca_score ?? "—"}</td>
                   <td className="td">
                     <span className="inline-flex items-center gap-1.5">
                       {o.is_southeast && (
-                        <span className="rounded bg-[var(--series-3)] px-1 py-0.5 text-[10px] font-semibold text-white" title="Southeast warehouse">
+                        <Badge tone="pos" title="Southeast warehouse">
                           SE
-                        </span>
+                        </Badge>
                       )}
                       {o.warehouse_location ?? <span className="text-muted">Unknown</span>}
                     </span>
                   </td>
-                  <td className="td num">{m.fmt(o.spot_usd_lb)}</td>
-                  <td className="td num text-ink2">{m.fmt(o.freight_usd_lb)}</td>
-                  <td className="td num font-semibold">{m.fmt(o.landed_usd_lb)}</td>
-                  <td className="td num">{m.fmt(o.roasted_usd_lb)}</td>
+                  <td className="td num">
+                    <Price usdLb={o.spot_usd_lb} layout="stack" />
+                  </td>
+                  <td className="td num text-ink2">
+                    {m.fmt(o.freight_usd_lb)}
+                    <span className="text-[11px] text-muted">{m.suffix}</span>
+                  </td>
+                  <td className="td num">
+                    <Price usdLb={o.landed_usd_lb} layout="stack" />
+                  </td>
+                  <td className="td num">
+                    <Price usdLb={o.roasted_usd_lb} layout="stack" />
+                  </td>
                   <td className="td num">{o.bags_available ?? "—"}</td>
                 </tr>
               ))}
@@ -176,7 +199,7 @@ export default function Offers() {
         </div>
       )}
       <p className="mt-2 text-xs text-muted">
-        Landed = spot + LTL freight to Atlanta by warehouse tier + warehouse/financing fee. Roasted = landed ÷ (1 − shrinkage). Edit freight
+        Landed = spot × (1 + tariff) + ocean surcharge + LTL freight to Atlanta by warehouse tier + warehouse/financing fee. Roasted = landed ÷ (1 − shrinkage). Edit freight
         tiers on the <Link className="underline" href="/calculator">Landed Cost</Link> page. {rows.length} offers.
       </p>
     </>

@@ -36,12 +36,14 @@ server or Node build.
 3. Pick the repo and branch, set **Main file path** to `streamlit_app.py`, and under **Advanced settings** choose Python 3.12.
 4. Optional: paste secrets under **Advanced settings → Secrets** (template: `.streamlit/secrets.toml.example`).
    Set `ADMIN_PASSWORD` so visitors can't run pipelines, upload sheets or edit freight rules.
-5. **Deploy.** The first load takes about 30 seconds while 5 years of ICE "C"/FX prices download. Importer offers follow
-   within a minute, and customs data fills in over roughly 10 minutes (UN Comtrade is rate-limited), all in the background.
+5. **Deploy.** The first load takes about 30 seconds while ICE "C" history (back to 2000) and 5 years of FX download. Importer
+   offers, the forward curve, weather and USDA data follow within a minute or two, and customs data fills in over roughly
+   10 minutes (UN Comtrade is rate-limited), all in the background.
 
 How it behaves on Community Cloud:
 
-- **No scheduler.** Data refreshes when someone visits and it is stale: prices and offers after 12 hours, customs data after 7 days.
+- **No scheduler.** Data refreshes when someone visits and it is stale: prices, the forward curve and offers after 12 hours,
+  weather after a day, USDA and customs data after 7 days.
   Alerts run after each refresh.
 - **Temporary disk.** The SQLite database is rebuilt whenever the app restarts or wakes from sleep, so price *history* for
   importer offers starts over. To keep it, set `DATABASE_URL` to a hosted PostgreSQL database (Neon and Supabase have free tiers)
@@ -53,21 +55,23 @@ How it behaves on Community Cloud:
 
 | Page | What it shows |
 |---|---|
-| **Overview** | ICE "C" settle, 30-day MA, 52-week range; world choropleth (price / differential / 30d change); latest alerts; origin FX |
-| **Origin Matrix** | All producing countries grouped by region: spot avg, differential vs "C", customs unit value, 7d/30d/YoY change, harvest status + calendar |
-| **Spot Offers** | Current importer lots with freight → landed Atlanta → true roasted cost; Southeast-warehouse filter; shrinkage slider |
-| **Trends** | Spot vs "C" for any country + process over 30d/90d/1y/3y, differential spread (widening/compressing), customs unit values; table view |
-| **Landed Cost** | Simulator ($/lb, $/kg or per bag; 60/69/70 kg bags) with per-warehouse comparison; editable freight ruleset |
+| **Overview** | Arabica / Robusta / All benchmark bar; ICE history with 1M–6M–1Y–3Y–5Y–MAX pills; world choropleth (click a country for its drawer); **Predictive signals**: forward curve (contango/backwardation), weather anomalies, certified stocks, USDA crop cycle; alerts; origin FX |
+| **Origin drawer** | Slide-over per country: harvest window, species split, weather-risk badge, on/off-year, and every live lot (farm/station, importer, bag size, landed Atlanta + roasted cost) |
+| **Origin Matrix** | All producing countries grouped by region, with a species filter: spot avg, differential vs ICE "C" (or ICE Robusta), customs unit value, 7d/30d/YoY change, harvest status + calendar |
+| **Spot Offers** | Current importer lots with freight → landed Atlanta → true roasted cost; species and Southeast-warehouse filters; shrinkage slider |
+| **Trends** | Spot vs "C" (and Robusta) for any country + process over 1M–5Y, differential spread, monthly + annual customs unit values; table view |
+| **Landed Cost** | Simulator ($/lb, $/kg or per bag) with tariff/import duty % and ocean surcharge ($/container or $/lb), per-warehouse comparison; editable freight ruleset |
 | **Alerts** | Origin drops, value-per-point deals, Southeast arrivals, FX triggers |
 | **Data Sources** | Run any pipeline, drag-and-drop spot sheets, run log |
 
-`$/lb ↔ $/kg` toggles globally in the header.
+Every price shows in both units (e.g. **$2.82/lb** ($6.22/kg)); the `$/lb ↔ $/kg` toggle picks which one is primary.
 
 ## Data tiers
 
 **Tier 1 — benchmarks & FX** (`backend/app/pipelines/benchmarks.py`, weekdays 6:15pm ET)
-- ICE Arabica "C" (`KC=F`, US¢/lb → $/lb) and FX for BRL, COP, ETB, HNL, GTQ, KES, VND, IDR, PEN, MXN, UGX, INR, NIO, CRC, RWF, TZS from Yahoo Finance's chart API (no key). Today's still-forming bar is skipped.
-- **ICE Robusta isn't on Yahoo.** Drop daily settlements into `data/ice_robusta.csv` (`date,usd_tonne`) or set `ROBUSTA_YAHOO_SYMBOL`.
+- ICE Arabica "C" (`KC=F`, US¢/lb → $/lb, daily back to 2000 for the MAX range) and FX for BRL, COP, ETB, HNL, GTQ, KES, VND, IDR, PEN, MXN, UGX, INR, NIO, CRC, RWF, TZS from Yahoo Finance's chart API (no key). Today's still-forming bar is skipped.
+- **ICE Robusta isn't on Yahoo** (or any free feed we found). Upload daily settlements (`date,usd_tonne`) on Data Sources, drop them into
+  `data/ice_robusta.csv`, or set `ROBUSTA_YAHOO_SYMBOL`. Robusta then powers the Robusta benchmark bar, differentials and charts.
 - **ICO indicator prices** have no API: drop `data/ico_prices.csv` (`date,composite,colombian_milds,other_milds,brazilian_naturals,robustas`, US¢/lb).
 
 **Tier 2 — importer spot offers** (`scrapers/`, daily 7am; dropzone every 5 min)
@@ -80,6 +84,17 @@ How it behaves on Community Cloud:
 - **Authenticated portals** (Cafe Imports, Atlas, Ally, ofi, Sucafina): copy `data/portals.example.json` → `data/portals.json`, fill selectors,
   put credentials in `.env`, install Playwright. Downloads land in the dropzone.
 
+**Market signals** (`pipelines/market.py`, `weather.py`, `usda.py`)
+- **Forward curve:** each listed ICE Arabica contract month from Yahoo (`KCH27.NYB`, …). Front vs furthest contract ±1.5% → contango / backwardation / flat.
+- **Certified stocks:** ICE has no free API. Upload `date,bags` on Data Sources (or `data/ice_certified_stocks.csv`). "Supply pinch" =
+  bottom 20% of the 5-year range and down >10% in 90 days.
+- **Weather (Open-Meteo, no key):** 15 growing belts in `data/growing_belts.json`. 90-day rain vs the same window over 10 years, hot days
+  (≥32°C Arabica, ≥35°C Robusta), frost (≤1°C, last 30 days and 10-day forecast) → Low / Moderate / Critical. A rule of thumb, not a forecast.
+- **USDA FAS PSD (no key):** production by species, consumption and stocks. On/off-year is derived from the alternating Arabica crop
+  (Arabica-majority origins only); world surplus = production − consumption.
+- **Species tagging:** offers are tagged Arabica / Robusta / Liberica from lot name, variety or a `species` column; single-species
+  origins fill the rest. Customs data covers both species.
+
 **Tier 3 — customs unit values** (`backend/app/pipelines/trade.py`, weekly)
 - HS 0901.11 import value ÷ net weight from UN Comtrade for the US, Germany and Japan (monthly + annual), giving a price for every origin that ships.
 - Comtrade's recent **US monthly weights are estimated** from value (flat ~$3.00/lb for every origin), so those rows are dropped. Set a free
@@ -89,13 +104,15 @@ How it behaves on Community Cloud:
 ## Cost model
 
 ```
-Landed green $/lb  = spot $/lb + LTL freight to Atlanta $/lb + warehouse/financing fee $/lb
+Landed green $/lb  = spot $/lb × (1 + tariff %) + ocean surcharge $/lb + LTL freight to Atlanta $/lb + warehouse/financing fee $/lb
 True roasted $/lb  = landed $/lb ÷ (1 − shrinkage)
 ```
 
 Freight tiers (editable on the Landed Cost page, stored in `data/freight_rules.json`):
 Southeast (Savannah, Charleston, Jacksonville) $0.12–0.18 · Northeast/Miami/New Orleans $0.22–0.30 ·
-West Coast/Houston $0.38–0.55 · unknown warehouse → $0.45. Default fee $0.05/lb, default shrinkage 15%.
+West Coast/Houston $0.38–0.55 · unknown warehouse → $0.45. Default fee $0.05/lb, default shrinkage 15%, tariff and ocean
+surcharge 0 (importer spot prices are usually duty-paid, ex-warehouse). A per-container surcharge is spread over bags × bag weight
+(default 320 × 60 kg).
 
 Origin spot averages use full-bag lots (≥20 kg) when available; small boxes (e.g. 22 lb Crown Jewels) carry a small-lot premium and
 are only used — and labelled “small-pack” — when nothing else is offered.
@@ -114,7 +131,7 @@ Thresholds are in `.env.example`.
 ## CLI
 
 ```
-python -m backend.app.cli init | benchmarks | trade [--months N] | scrape [--only k] [--dry-run]
+python -m backend.app.cli init | benchmarks | market | weather | usda | trade [--months N] | scrape [--only k] [--dry-run]
                           portals | dropzone | ingest FILE | alerts [--no-deliver] | digest | all
 ```
 

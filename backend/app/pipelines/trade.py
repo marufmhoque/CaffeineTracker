@@ -215,7 +215,7 @@ def run(
     client: httpx.Client | None = None,
     today: date | None = None,
     pause_s: float = 1.5,
-    annual_years: int = 3,
+    annual_years: int = 5,  # annual rows give the 5-year customs history on the Trends page
 ) -> dict:
     """Fetch recent months (default: full backfill on an empty table, else last 6 to catch revisions)."""
     logger = RunLogger(session, "trade")

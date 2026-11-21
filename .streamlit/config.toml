@@ -1,6 +1,25 @@
 [theme]
-primaryColor = "#2a78d6"
-font = "sans serif"
+primaryColor = "#d97706"
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+codeFont = "JetBrains Mono:https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap"
+baseRadius = "0.75rem"
+showWidgetBorder = true
+chartCategoricalColors = ["#d97706", "#2563eb", "#059669", "#7c3aed"]
+
+[theme.light]
+backgroundColor = "#fafafa"
+secondaryBackgroundColor = "#f4f4f5"
+textColor = "#18181b"
+borderColor = "#e4e4e7"
+linkColor = "#b45309"
+
+[theme.dark]
+primaryColor = "#f59e0b"
+backgroundColor = "#09090b"
+secondaryBackgroundColor = "#18181b"
+textColor = "#fafafa"
+borderColor = "#3f3f46"
+linkColor = "#fbbf24"
 
 [server]
 headless = true

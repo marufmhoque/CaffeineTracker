@@ -58,6 +58,7 @@ FIELD_SYNONYMS: list[tuple[str, list[str]]] = [
              "reference", "ico", "lot #", "lot number"]),
     ("process", ["process", "processing", "prep", "method", "preparation"]),
     ("variety", ["variety", "varietal", "varietals", "varieties", "cultivar"]),
+    ("species", ["species", "arabica/robusta", "coffee type"]),
     ("score", ["cupping score", "cup score", "sca score", "score", "sca", "points", "q score", "grade score"]),
     ("warehouse", ["warehouse", "whse", "location", "port", "ships from", "stored", "position", "wh",
                    "shipping point", "landed"]),
@@ -263,6 +264,8 @@ def rows_to_offers(
                 warehouse_location=g("warehouse"),
                 bags_available=parse_int(g("bags")),
                 raw_url=source_name,
+                # Whole row text, so "Robusta"/"Conilon" anywhere in it tags the lot's species.
+                extra={"species": " ".join(x for x in (g("species"), blob) if x)},
             )
         )
     return res

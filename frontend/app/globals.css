@@ -2,92 +2,138 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Reference data-viz palette (light / dark selected separately, not flipped). */
+/* "Modern fintech" palette: white cards on a near-white canvas, 1px zinc borders, amber accent.
+   Light and dark are chosen separately (not flipped). Chart series validated for CVD separation. */
 :root {
   color-scheme: light;
-  --page: #f9f9f7;
-  --surface-1: #fcfcfb;
-  --surface-2: #f3f2ee;
-  --text-primary: #0b0b0b;
-  --text-secondary: #52514e;
-  --text-muted: #898781;
-  --grid: #e1e0d9;
-  --axis: #c3c2b7;
-  --border: rgba(11, 11, 11, 0.1);
-  --series-1: #2a78d6;
-  --series-2: #eb6834;
-  --series-3: #1baf7a;
-  --series-4: #eda100;
-  --good-text: #006300;
-  --critical: #d03b3b;
-  --warning: #fab219;
-  --serious: #ec835a;
-  --good: #0ca30c;
-  --neutral-mid: #f0efec;
-  --nodata: #e6e5e0;
-  --seq-1: #cde2fb;
-  --seq-2: #9ec5f4;
-  --seq-3: #6da7ec;
-  --seq-4: #3987e5;
-  --seq-5: #256abf;
-  --seq-6: #184f95;
-  --seq-7: #0d366b;
+  --page: #fafafa;
+  --surface-1: #ffffff;
+  --surface-2: #f4f4f5;
+  --surface-hover: #fafafa;
+  --text-primary: #18181b;
+  --text-secondary: #52525b;
+  --text-muted: #71717a;
+  --grid: #f0f0f2;
+  --axis: #d4d4d8;
+  --border: rgba(228, 228, 231, 0.8);
+  --border-strong: #d4d4d8;
+  --accent: #d97706;
+  --accent-strong: #b45309;
+  --accent-soft: #fffbeb;
+  --accent-ring: #fde68a;
+  --series-1: #d97706;
+  --series-2: #2563eb;
+  --series-3: #059669;
+  --series-4: #7c3aed;
+  --pos-text: #059669;
+  --pos-bg: #ecfdf5;
+  --neg-text: #e11d48;
+  --neg-bg: #fff1f2;
+  --warn-text: #b45309;
+  --warn-bg: #fffbeb;
+  --good-text: #059669;
+  --critical: #e11d48;
+  --warning: #f59e0b;
+  --serious: #ea580c;
+  --good: #10b981;
+  --neutral-mid: #f4f4f5;
+  --nodata: #ececee;
+  --land: #f4f4f5;
+  --seq-1: #fef3c7;
+  --seq-2: #fde68a;
+  --seq-3: #fcd34d;
+  --seq-4: #f59e0b;
+  --seq-5: #d97706;
+  --seq-6: #b45309;
+  --seq-7: #78350f;
+  --shadow-card: 0 1px 2px rgba(24, 24, 27, 0.04);
+  --shadow-pop: 0 12px 32px -8px rgba(24, 24, 27, 0.18), 0 2px 6px rgba(24, 24, 27, 0.06);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) {
     color-scheme: dark;
-    --page: #0d0d0d;
-    --surface-1: #1a1a19;
-    --surface-2: #232321;
-    --text-primary: #f0efec;
-    --text-secondary: #c3c2b7;
-    --text-muted: #898781;
-    --grid: #2c2c2a;
-    --axis: #383835;
-    --border: rgba(255, 255, 255, 0.1);
-    --series-1: #3987e5;
-    --series-2: #d95926;
-    --series-3: #199e70;
-    --series-4: #c98500;
-    --good-text: #0ca30c;
-    --neutral-mid: #383835;
-    --nodata: #2c2c2a;
-    --seq-1: #104281;
-    --seq-2: #184f95;
-    --seq-3: #256abf;
-    --seq-4: #2a78d6;
-    --seq-5: #5598e7;
-    --seq-6: #86b6ef;
-    --seq-7: #b7d3f6;
+    --page: #09090b;
+    --surface-1: #131316;
+    --surface-2: #1f1f23;
+    --surface-hover: #18181b;
+    --text-primary: #fafafa;
+    --text-secondary: #a1a1aa;
+    --text-muted: #8a8a93;
+    --grid: #232327;
+    --axis: #3f3f46;
+    --border: rgba(63, 63, 70, 0.7);
+    --border-strong: #52525b;
+    --accent: #f59e0b;
+    --accent-strong: #fbbf24;
+    --accent-soft: rgba(245, 158, 11, 0.12);
+    --accent-ring: rgba(245, 158, 11, 0.4);
+    --series-1: #d97706;
+    --series-2: #3b82f6;
+    --series-3: #059669;
+    --series-4: #8b5cf6;
+    --pos-text: #34d399;
+    --pos-bg: rgba(16, 185, 129, 0.12);
+    --neg-text: #fb7185;
+    --neg-bg: rgba(244, 63, 94, 0.12);
+    --warn-text: #fbbf24;
+    --warn-bg: rgba(245, 158, 11, 0.12);
+    --good-text: #34d399;
+    --neutral-mid: #27272a;
+    --nodata: #232327;
+    --land: #1c1c20;
+    --seq-1: #451a03;
+    --seq-2: #78350f;
+    --seq-3: #92400e;
+    --seq-4: #b45309;
+    --seq-5: #d97706;
+    --seq-6: #f59e0b;
+    --seq-7: #fcd34d;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-pop: 0 16px 40px -8px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.4);
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --page: #0d0d0d;
-  --surface-1: #1a1a19;
-  --surface-2: #232321;
-  --text-primary: #f0efec;
-  --text-secondary: #c3c2b7;
-  --text-muted: #898781;
-  --grid: #2c2c2a;
-  --axis: #383835;
-  --border: rgba(255, 255, 255, 0.1);
-  --series-1: #3987e5;
-  --series-2: #d95926;
-  --series-3: #199e70;
-  --series-4: #c98500;
-  --good-text: #0ca30c;
-  --neutral-mid: #383835;
-  --nodata: #2c2c2a;
-  --seq-1: #104281;
-  --seq-2: #184f95;
-  --seq-3: #256abf;
-  --seq-4: #2a78d6;
-  --seq-5: #5598e7;
-  --seq-6: #86b6ef;
-  --seq-7: #b7d3f6;
+  --page: #09090b;
+  --surface-1: #131316;
+  --surface-2: #1f1f23;
+  --surface-hover: #18181b;
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-muted: #8a8a93;
+  --grid: #232327;
+  --axis: #3f3f46;
+  --border: rgba(63, 63, 70, 0.7);
+  --border-strong: #52525b;
+  --accent: #f59e0b;
+  --accent-strong: #fbbf24;
+  --accent-soft: rgba(245, 158, 11, 0.12);
+  --accent-ring: rgba(245, 158, 11, 0.4);
+  --series-1: #d97706;
+  --series-2: #3b82f6;
+  --series-3: #059669;
+  --series-4: #8b5cf6;
+  --pos-text: #34d399;
+  --pos-bg: rgba(16, 185, 129, 0.12);
+  --neg-text: #fb7185;
+  --neg-bg: rgba(244, 63, 94, 0.12);
+  --warn-text: #fbbf24;
+  --warn-bg: rgba(245, 158, 11, 0.12);
+  --good-text: #34d399;
+  --neutral-mid: #27272a;
+  --nodata: #232327;
+  --land: #1c1c20;
+  --seq-1: #451a03;
+  --seq-2: #78350f;
+  --seq-3: #92400e;
+  --seq-4: #b45309;
+  --seq-5: #d97706;
+  --seq-6: #f59e0b;
+  --seq-7: #fcd34d;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-pop: 0 16px 40px -8px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
 html,
@@ -96,25 +142,89 @@ body {
   color: var(--text-primary);
 }
 
+body {
+  font-feature-settings: "cv11", "ss01";
+}
+
 .card {
-  @apply rounded-xl border border-border bg-surface p-4;
+  @apply rounded-xl border border-border bg-surface p-5 transition-shadow;
+  box-shadow: var(--shadow-card);
+}
+.card-hover:hover {
+  box-shadow: var(--shadow-pop);
+}
+.card-title {
+  @apply text-[13px] font-semibold tracking-tight text-ink;
+}
+.eyebrow {
+  @apply text-[11px] font-medium uppercase tracking-[0.06em] text-muted;
 }
 .btn {
-  @apply inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface2 disabled:opacity-50;
+  @apply inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-surface2 disabled:opacity-50;
 }
 .btn-primary {
-  @apply inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50;
+  @apply inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50;
+  background: var(--accent-strong);
+}
+:root[data-theme="dark"] .btn-primary {
+  color: #18181b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .btn-primary {
+    color: #18181b;
+  }
 }
 .input {
-  @apply rounded-lg border border-border bg-surface px-2.5 py-1.5 text-sm text-ink outline-none focus:ring-2 focus:ring-accent;
+  @apply rounded-lg border border-border bg-surface px-2.5 py-1.5 text-sm text-ink outline-none transition-shadow focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-ring)];
 }
 .th {
-  @apply whitespace-nowrap px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted;
+  @apply whitespace-nowrap px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[0.06em] text-muted;
 }
 .td {
-  @apply whitespace-nowrap px-3 py-2 text-sm;
+  @apply whitespace-nowrap px-3 py-2.5 text-sm;
 }
 .num {
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
   font-variant-numeric: tabular-nums;
   text-align: right;
+  letter-spacing: -0.01em;
+}
+.mono {
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.link {
+  color: var(--accent-strong);
+  @apply hover:underline;
+}
+
+/* Slide-over drawer */
+@keyframes drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.drawer-panel {
+  animation: drawer-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.drawer-backdrop {
+  animation: fade-in 180ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .drawer-panel,
+  .drawer-backdrop {
+    animation: none;
+  }
 }

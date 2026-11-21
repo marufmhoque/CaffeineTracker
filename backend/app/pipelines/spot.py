@@ -20,6 +20,7 @@ from .. import config
 from ..costing import landed_cost, load_rules, match_warehouse
 from ..db import RunLogger
 from ..models import Country, IngestedFile, SpotOffer, utcnow
+from ..species import infer_species
 
 log = logging.getLogger(__name__)
 
@@ -42,6 +43,8 @@ def persist_offers(
 ) -> int:
     rules = rules or load_rules()
     fee = float(rules["warehouse_fee_usd_lb"])
+    tariff = float(rules.get("tariff_pct", 0))
+    ocean = float(rules.get("ocean_surcharge_usd_lb", 0))
     batch_id = batch_id or uuid.uuid4().hex[:12]
     known = {c.iso_code: c for c in session.exec(select(Country)).all()}
     now = utcnow()
@@ -63,6 +66,10 @@ def persist_offers(
                 origin_region=r.origin_region,
                 process=r.process,
                 variety=r.variety,
+                species=infer_species(
+                    r.lot_name, r.variety, r.origin_region, (r.extra or {}).get("species"),
+                    species_mix=known[r.country_iso].species_mix if r.country_iso else None,
+                ),
                 sca_score=r.sca_score,
                 bag_weight_kg=bag,
                 warehouse_location=wm.warehouse if wm.matched else (r.warehouse_location or None),
@@ -70,7 +77,8 @@ def persist_offers(
                 is_southeast=wm.southeast,
                 spot_price_usd_lb=r.spot_price_usd_lb,
                 freight_usd_lb=wm.freight_usd_lb,
-                atlanta_landed_usd_lb=round(landed_cost(r.spot_price_usd_lb, wm.freight_usd_lb, fee), 4),
+                atlanta_landed_usd_lb=round(landed_cost(
+                    r.spot_price_usd_lb, wm.freight_usd_lb, fee, tariff_pct=tariff, ocean_usd_lb=ocean), 4),
                 bags_available=r.bags_available,
                 raw_url=r.raw_url,
                 offer_key=offer_key(r, wm.warehouse),

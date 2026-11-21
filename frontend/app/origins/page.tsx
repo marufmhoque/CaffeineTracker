@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Delta, ErrorNote, HarvestBadge, PageHeader, Segmented } from "@/components/ui";
+import OriginDrawer from "@/components/OriginDrawer";
+import { Delta, ErrorNote, HarvestBadge, PageHeader, Price, Segmented, SpeciesToggle, type Species } from "@/components/ui";
 import WorldMap, { type MapMetric } from "@/components/WorldMap";
 import { useApi, type Country, type Matrix } from "@/lib/api";
 import { MONTHS, useMoney } from "@/lib/prefs";
@@ -26,7 +26,7 @@ function HarvestStrip({ main, fly }: { main: number[]; fly: number[] }) {
     <div className="flex gap-px" aria-label={`Main harvest months ${main.join(", ")}${fly.length ? `; fly crop ${fly.join(", ")}` : ""}`}>
       {MONTHS.map((l, i) => {
         const mo = i + 1;
-        const bg = main.includes(mo) ? "var(--series-3)" : fly.includes(mo) ? "var(--series-4)" : "var(--surface-2)";
+        const bg = main.includes(mo) ? "var(--accent)" : fly.includes(mo) ? "var(--accent-ring)" : "var(--surface-2)";
         return (
           <span
             key={i}
@@ -44,7 +44,9 @@ function HarvestStrip({ main, fly }: { main: number[]; fly: number[] }) {
 
 export default function Origins() {
   const m = useMoney();
-  const { data, error } = useApi<Matrix>("/matrix");
+  const [species, setSpecies] = useState<Species>("All");
+  const [selected, setSelected] = useState<string | null>(null);
+  const { data, error } = useApi<Matrix>(`/matrix?species=${species}`);
   const [metric, setMetric] = useState<MapMetric>("price");
   const [q, setQ] = useState("");
   const [region, setRegion] = useState("all");
@@ -76,6 +78,8 @@ export default function Origins() {
     return REGIONS.map((r) => ({ region: r, rows: filtered.filter((c) => c.region === r).sort(cmp) })).filter((g) => g.rows.length);
   }, [filtered, sort]);
 
+  const bench = data?.benchmark === "robusta" ? "ICE Robusta" : "ICE “C”";
+
   const H = ({ k, children, num }: { k: SortKey; children: React.ReactNode; num?: boolean }) => (
     <th className={`th ${num ? "num" : ""}`} aria-sort={sort.key === k ? (sort.dir === 1 ? "ascending" : "descending") : "none"}>
       <button className="uppercase hover:text-ink" onClick={() => setSort((s) => ({ key: k, dir: s.key === k ? (s.dir === 1 ? -1 : 1) : k === "name" ? 1 : -1 }))}>
@@ -88,13 +92,18 @@ export default function Origins() {
     <>
       <PageHeader
         title="Global origin matrix"
-        subtitle={`Every coffee-producing country: live specialty spot averages (Tier 2), customs import unit values (Tier 3), differential vs ICE “C” (${m.fmt(data?.ice_arabica_usd_lb ?? null, 4)}${m.suffix}) and harvest status.`}
-      />
+        subtitle={`Every coffee-producing country: live spot averages, customs import unit values, differential vs ${bench} (${
+          data?.benchmark_usd_lb != null ? m.dualText(data.benchmark_usd_lb, 4) : "not loaded"
+        }) and harvest status. Click a country for its lots and outlook.`}
+      >
+        <SpeciesToggle value={species} onChange={setSpecies} />
+      </PageHeader>
       <ErrorNote error={error} />
 
       <section className="card mb-4">
         <div className="mb-2 flex justify-end">
           <Segmented
+            size="sm"
             label="Map metric"
             value={metric}
             onChange={setMetric}
@@ -105,7 +114,7 @@ export default function Origins() {
             ]}
           />
         </div>
-        {rows.length > 0 && <WorldMap rows={rows} metric={metric} />}
+        {rows.length > 0 && <WorldMap rows={rows} metric={metric} onSelect={setSelected} selected={selected} />}
       </section>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -133,8 +142,8 @@ export default function Origins() {
           <thead className="sticky top-0 bg-surface">
             <tr>
               <H k="name">Country</H>
-              <H k="spot" num>Spot avg {m.suffix}</H>
-              <H k="diff" num>Diff vs “C”</H>
+              <H k="spot" num>Spot avg</H>
+              <H k="diff" num>Diff vs {data?.benchmark === "robusta" ? "Robusta" : "“C”"}</H>
               <H k="trade" num>Customs unit value</H>
               <H k="chg7" num>7d</H>
               <H k="chg30" num>30d</H>
@@ -146,22 +155,22 @@ export default function Origins() {
           {grouped.map((g) => (
             <tbody key={g.region}>
               <tr>
-                <td colSpan={9} className="bg-surface2 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-ink2">
+                <td colSpan={9} className="eyebrow bg-surface2 px-3 py-2 !text-ink2">
                   {g.region} <span className="font-normal text-muted">· {g.rows.length}</span>
                 </td>
               </tr>
               {g.rows.map((c) => (
-                <tr key={c.iso_code} className="border-t border-[var(--grid)] hover:bg-surface2">
+                <tr key={c.iso_code} className="border-t border-border hover:bg-[var(--surface-hover)]">
                   <td className="td">
-                    <Link href={`/trends?country=${c.iso_code}`} className="font-medium hover:underline">
+                    <button onClick={() => setSelected(c.iso_code)} className="font-medium hover:underline">
                       {c.name}
-                    </Link>
+                    </button>
                     <div className="text-xs text-muted">
                       {c.species_mix} · {c.currency_code}
                     </div>
                   </td>
                   <td className="td num">
-                    {m.fmt(c.spot_avg_usd_lb)}
+                    <Price usdLb={c.spot_avg_usd_lb} layout="stack" />
                     {c.spot_offer_count > 0 && (
                       <div className="text-xs text-muted">
                         {c.spot_offer_count} {c.spot_basis === "small packs" ? "small-pack" : ""} offers
@@ -170,11 +179,11 @@ export default function Origins() {
                     )}
                   </td>
                   <td className="td num">
-                    {m.fmtSigned(c.diff_vs_c_usd_lb)}
+                    <Price usdLb={c.diff_vs_c_usd_lb} layout="stack" signed />
                     {c.diff_basis && <div className="text-xs text-muted">{c.diff_basis === "spot" ? "spot" : "customs"}</div>}
                   </td>
                   <td className="td num">
-                    {m.fmt(c.trade_unit_usd_lb)}
+                    <Price usdLb={c.trade_unit_usd_lb} layout="stack" />
                     {c.trade_period && (
                       <div className="text-xs text-muted">
                         {c.trade_freq === "A" ? `${c.trade_period.slice(0, 4)} annual` : `3 mo to ${c.trade_period.slice(0, 7)}`} · {c.trade_reporters.join("/")}
@@ -204,9 +213,11 @@ export default function Origins() {
         </table>
       </div>
       <p className="mt-2 text-xs text-muted">
-        Price changes are colored for a buyer: ▼ green = cheaper, ▲ red = dearer. Customs unit values are monthly where the importing
-        market reports real weights (else annual) — a broad market signal, not a specialty price.
+        Change pills: ▲ emerald = price up, ▼ rose = price down. Customs unit values are monthly where the importing market reports real weights (else
+        annual) and cover both species — a broad market signal, not a specialty price. Species filters keep origins growing that species and average only its
+        lots (untagged lots count as the origin&apos;s main species).
       </p>
+      <OriginDrawer iso={selected} onClose={() => setSelected(null)} />
     </>
   );
 }

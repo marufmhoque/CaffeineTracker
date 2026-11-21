@@ -24,6 +24,7 @@ def rules():
 @pytest.fixture()
 def tmp_env(tmp_path, monkeypatch):
     """Isolated data dir + database; global engine swapped for the test."""
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
     monkeypatch.setattr(config, "FREIGHT_RULES_FILE", tmp_path / "freight_rules.json")
     monkeypatch.setattr(config, "SPOT_SHEETS_DIR", tmp_path / "spot_sheets")
     monkeypatch.setattr(config, "ICO_PRICES_FILE", tmp_path / "ico_prices.csv")

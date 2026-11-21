@@ -19,16 +19,16 @@ from sqlmodel import Session, select
 from . import config
 from .harvest import harvest_status
 from .models import Country, MarketBenchmark, SpotOffer, TradeValuation
+from .species import ROBUSTA, dominant_species
 
 STALE_DAYS = 21
 
 
 # ---------------------------------------------------------------- benchmarks
 
-def ice_series(session: Session, start: date | None = None) -> list[tuple[date, float]]:
-    q = select(MarketBenchmark.date, MarketBenchmark.ice_arabica_usd_lb).where(
-        MarketBenchmark.ice_arabica_usd_lb.is_not(None)
-    )
+def ice_series(session: Session, start: date | None = None, market: str = "arabica") -> list[tuple[date, float]]:
+    col = MarketBenchmark.ice_robusta_usd_lb if market == "robusta" else MarketBenchmark.ice_arabica_usd_lb
+    q = select(MarketBenchmark.date, col).where(col.is_not(None))
     if start:
         q = q.where(MarketBenchmark.date >= start)
     return [(d, v) for d, v in session.exec(q.order_by(MarketBenchmark.date)).all()]
@@ -71,11 +71,9 @@ def benchmark_summary(session: Session, today: date | None = None) -> dict[str, 
     latest = series[-1] if series else None
     last_30 = [v for d, v in series if d > today - timedelta(days=30)]
     last_52w = [v for d, v in series if d > today - timedelta(days=365)]
-    rob = session.exec(
-        select(MarketBenchmark.date, MarketBenchmark.ice_robusta_usd_lb)
-        .where(MarketBenchmark.ice_robusta_usd_lb.is_not(None))
-        .order_by(MarketBenchmark.date.desc())
-    ).first()
+    rob_series = ice_series(session, today - timedelta(days=400), market="robusta")
+    rob = rob_series[-1] if rob_series else None
+    rob_52w = [v for d, v in rob_series if d > today - timedelta(days=365)]
     ico = session.exec(
         select(MarketBenchmark)
         .where(MarketBenchmark.ico_composite_usd_lb.is_not(None))
@@ -106,7 +104,15 @@ def benchmark_summary(session: Session, today: date | None = None) -> dict[str, 
             "chg_30d_pct": pct_change(latest[1], asof(series, latest[0] - timedelta(days=30))) if latest else None,
             "chg_1y_pct": pct_change(latest[1], asof(series, latest[0] - timedelta(days=365))) if latest else None,
         },
-        "ice_robusta": {"date": rob[0].isoformat(), "usd_lb": rob[1]} if rob else None,
+        "ice_robusta": {
+            "date": rob[0].isoformat(),
+            "usd_lb": rob[1],
+            "chg_1d_pct": pct_change(rob[1], rob_series[-2][1]) if len(rob_series) > 1 else None,
+            "chg_30d_pct": pct_change(rob[1], asof(rob_series, rob[0] - timedelta(days=30))),
+            "chg_1y_pct": pct_change(rob[1], asof(rob_series, rob[0] - timedelta(days=365))),
+            "high_52w": max(rob_52w) if rob_52w else None,
+            "low_52w": min(rob_52w) if rob_52w else None,
+        } if rob else None,
         "ico": {
             "date": ico.date.isoformat(),
             "composite_usd_lb": ico.ico_composite_usd_lb,
@@ -149,11 +155,18 @@ def current_offers(
     min_score: float | None = None,
     southeast_only: bool = False,
     importer: str | None = None,
+    species: str | None = None,
 ) -> list[SpotOffer]:
     batches = latest_batches(session)
     if not batches:
         return []
     q = select(SpotOffer).where(SpotOffer.batch_id.in_(batches))
+    if species and species.lower() != "all":
+        rows = current_offers(session, country=country, process=process, min_score=min_score,
+                              southeast_only=southeast_only, importer=importer)
+        mixes = {c.iso_code: c.species_mix for c in session.exec(select(Country)).all()}
+        want = species.capitalize()
+        return [o for o in rows if (o.species or dominant_species(mixes.get(o.country_iso or ""))) == want]
     if country:
         q = q.where(SpotOffer.country_iso == country.upper())
     if process:
@@ -177,22 +190,23 @@ def is_bulk(bag_kg: float | None) -> bool:
 
 
 def _batch_aggregates(session: Session, start: datetime, country: str | None = None, process: str | None = None):
-    """Per-batch, per-country(/process, pack size) price sums since `start` (plus STALE_DAYS lookback)."""
+    """Per-batch, per-country(/process, species, pack size) price sums since `start` (plus STALE_DAYS lookback)."""
     bulk = case((SpotOffer.bag_weight_kg < BULK_MIN_KG, False), else_=True)
     q = select(
         SpotOffer.batch_id, SpotOffer.importer, func.max(SpotOffer.scraped_at),
-        SpotOffer.country_iso, SpotOffer.process, bulk,
+        SpotOffer.country_iso, SpotOffer.process, SpotOffer.species, bulk,
         func.count(SpotOffer.id), func.sum(SpotOffer.spot_price_usd_lb),
     ).where(SpotOffer.scraped_at >= start - timedelta(days=STALE_DAYS), SpotOffer.country_iso.is_not(None))
     if country:
         q = q.where(SpotOffer.country_iso == country)
     if process:
         q = q.where(SpotOffer.process == process)
-    q = q.group_by(SpotOffer.batch_id, SpotOffer.importer, SpotOffer.country_iso, SpotOffer.process, bulk)
+    q = q.group_by(SpotOffer.batch_id, SpotOffer.importer, SpotOffer.country_iso, SpotOffer.process,
+                   SpotOffer.species, bulk)
     rows = []
-    for batch, imp, ts, iso, proc, is_bulk_, n, total in session.exec(q).all():
+    for batch, imp, ts, iso, proc, sp, is_bulk_, n, total in session.exec(q).all():
         ts = ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
-        rows.append((batch, imp, ts, iso, proc, bool(is_bulk_), n, total))
+        rows.append((batch, imp, ts, iso, proc, sp, bool(is_bulk_), n, total))
     return rows
 
 
@@ -202,16 +216,17 @@ class SpotIndex:
     Averages use full-bag lots when a country has any; otherwise small packs (basis reported).
     """
 
-    def __init__(self, rows):
+    def __init__(self, rows, mixes: dict[str, str] | None = None):
         # importer -> sorted list of (ts, batch)
         self.by_importer: dict[str, list[tuple[datetime, str]]] = defaultdict(list)
-        self.batch_rows: dict[str, list[tuple[str, str | None, bool, int, float]]] = defaultdict(list)
+        self.batch_rows: dict[str, list[tuple[str, str | None, str | None, bool, int, float]]] = defaultdict(list)
+        self.mixes = mixes or {}
         seen = set()
-        for batch, imp, ts, iso, proc, bulk, n, total in rows:
+        for batch, imp, ts, iso, proc, sp, bulk, n, total in rows:
             if (imp, batch) not in seen:
                 self.by_importer[imp].append((ts, batch))
                 seen.add((imp, batch))
-            self.batch_rows[batch].append((iso, proc, bulk, n, total))
+            self.batch_rows[batch].append((iso, proc, sp, bulk, n, total))
         for v in self.by_importer.values():
             v.sort()
 
@@ -229,15 +244,21 @@ class SpotIndex:
         return out
 
     def avg(
-        self, moment: datetime, country: str | None = None, process: str | None = None
+        self, moment: datetime, country: str | None = None, process: str | None = None,
+        species: str | None = None,
     ) -> dict[str, tuple[float, int, str]]:
-        """country -> (avg price, n offers, basis 'bags'|'small packs') as of `moment`."""
+        """country -> (avg price, n offers, basis 'bags'|'small packs') as of `moment`.
+
+        `species` keeps lots of that species; untagged lots count as their origin's dominant species.
+        """
         acc: dict[tuple[str, bool], list[float]] = defaultdict(lambda: [0.0, 0])
         for b in self.batches_asof(moment):
-            for iso, proc, bulk, n, total in self.batch_rows[b]:
+            for iso, proc, sp, bulk, n, total in self.batch_rows[b]:
                 if country and iso != country:
                     continue
                 if process and proc != process:
+                    continue
+                if species and (sp or dominant_species(self.mixes.get(iso))) != species:
                     continue
                 acc[(iso, bulk)][0] += total
                 acc[(iso, bulk)][1] += n
@@ -259,7 +280,8 @@ def _eod(d: date) -> datetime:
 
 
 def spot_index(session: Session, start: date, country: str | None = None, process: str | None = None) -> SpotIndex:
-    return SpotIndex(_batch_aggregates(session, _eod(start) - timedelta(days=1), country, process))
+    mixes = {c.iso_code: c.species_mix for c in session.exec(select(Country)).all()}
+    return SpotIndex(_batch_aggregates(session, _eod(start) - timedelta(days=1), country, process), mixes)
 
 
 # ---------------------------------------------------------------- trade
@@ -366,21 +388,33 @@ def trade_series(session: Session, country: str) -> list[dict[str, Any]]:
 
 # ---------------------------------------------------------------- matrix
 
-def country_matrix(session: Session, today: date | None = None) -> dict[str, Any]:
+def _species_arg(species: str | None) -> str | None:
+    if not species or species.lower() == "all":
+        return None
+    return species.capitalize()
+
+
+def country_matrix(session: Session, today: date | None = None, species: str | None = None) -> dict[str, Any]:
+    """Per-country price matrix. `species` (Arabica|Robusta) keeps origins growing it, averages only that
+    species' lots and measures differentials against that species' benchmark (ICE "C" or ICE Robusta)."""
     today = today or date.today()
+    species = _species_arg(species)
     now = _eod(today)
     countries = session.exec(select(Country).order_by(Country.region, Country.name)).all()
-    ice = ice_series(session, today - timedelta(days=800))
+    if species:
+        countries = [c for c in countries if species in (c.species_mix or "")]
+    market = "robusta" if species == ROBUSTA else "arabica"
+    ice = ice_series(session, today - timedelta(days=800), market=market)
     c_now = asof(ice, today)
     idx = spot_index(session, today - timedelta(days=400))
-    spot_now = idx.avg(now)
-    spot_7 = idx.avg(now - timedelta(days=7))
-    spot_30 = idx.avg(now - timedelta(days=30))
-    spot_1y = idx.avg(now - timedelta(days=365))
+    spot_now = idx.avg(now, species=species)
+    spot_7 = idx.avg(now - timedelta(days=7), species=species)
+    spot_30 = idx.avg(now - timedelta(days=30), species=species)
+    spot_1y = idx.avg(now - timedelta(days=365), species=species)
     trade = latest_trade(session, today)
 
     se_counts: dict[str, int] = defaultdict(int)
-    for o in current_offers(session):
+    for o in current_offers(session, species=species):
         if o.is_southeast and o.country_iso:
             se_counts[o.country_iso] += 1
 
@@ -444,12 +478,14 @@ def country_matrix(session: Session, today: date | None = None) -> dict[str, Any
             "main_harvest_months": c.main_harvest_months,
             "fly_harvest_months": c.fly_harvest_months,
         })
-    return {"as_of": today.isoformat(), "ice_arabica_usd_lb": c_now, "countries": rows}
+    return {"as_of": today.isoformat(), "species": species or "All", "benchmark": market,
+            "benchmark_usd_lb": c_now, "ice_arabica_usd_lb": c_now if market == "arabica" else None,
+            "countries": rows}
 
 
 # ---------------------------------------------------------------- history
 
-RANGES = {"30d": 30, "90d": 90, "1y": 365, "3y": 365 * 3}
+RANGES = {"30d": 30, "90d": 90, "1y": 365, "3y": 365 * 3, "5y": 365 * 5}
 
 
 def history(
@@ -460,9 +496,10 @@ def history(
     start = today - timedelta(days=days)
     country = country.upper()
     ice = ice_series(session, start - timedelta(days=10))
+    rob = ice_series(session, start - timedelta(days=10), market="robusta")
     idx = spot_index(session, start, country=country, process=process)
     points = []
-    step = 1 if days <= 120 else (3 if days <= 400 else 7)
+    step = 1 if days <= 120 else (3 if days <= 400 else (7 if days <= 365 * 3 else 14))
     # Step backwards from today so the latest point is always today (fresh scrapes show immediately).
     days_list = [today - timedelta(days=i) for i in range(0, days + 1, step)][::-1]
     for d in days_list:
@@ -472,6 +509,7 @@ def history(
             points.append({
                 "date": d.isoformat(),
                 "ice_c_usd_lb": c,
+                "ice_robusta_usd_lb": asof(rob, d) if rob else None,
                 "spot_avg_usd_lb": round(s[0], 4) if s else None,
                 "spot_n": s[1] if s else 0,
                 "spot_basis": s[2] if s else None,
